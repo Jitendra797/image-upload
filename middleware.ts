@@ -6,13 +6,20 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Uses Supabase's new asymmetric JWT signing keys system for secure authentication
  */
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // API routes and auth callback are handled separately - allow them through without Supabase
+  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/')) {
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
 
   // Check if environment variables exist - fail fast if not
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error('Missing Supabase environment variables');
+    // Skip Supabase initialization if env vars are missing
     return supabaseResponse;
   }
 
@@ -44,8 +51,6 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   // Define public routes that don't require authentication
   const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
   const isPublicRoute = publicRoutes.some((route) => {
@@ -54,11 +59,6 @@ export async function middleware(request: NextRequest) {
     }
     return pathname === route || pathname.startsWith(route + '/');
   });
-
-  // API routes and auth callback are handled separately - allow them through
-  if (pathname.startsWith('/api/') || pathname.startsWith('/auth/')) {
-    return supabaseResponse;
-  }
 
   // If user is authenticated and trying to access auth pages, redirect to dashboard
   if (user && (pathname === '/login' || pathname === '/register' || pathname === '/forgot-password')) {
